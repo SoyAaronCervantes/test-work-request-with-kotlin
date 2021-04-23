@@ -1,10 +1,9 @@
 package com.soyaaroncervantes.demoworkmanager
 
-import android.os.Build
 import android.os.Bundle
 import android.text.format.DateFormat
 import android.util.Log
-import androidx.annotation.RequiresApi
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequest
@@ -15,11 +14,13 @@ import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
 import com.soyaaroncervantes.demoworkmanager.databinding.ActivityMainBinding
-import java.sql.Time
-import java.time.LocalDate
+import java.text.SimpleDateFormat
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.util.*
 import java.util.concurrent.TimeUnit
+import kotlin.time.ExperimentalTime
+import kotlin.time.minutes
 
 class MainActivity : AppCompatActivity() {
   lateinit var binding: ActivityMainBinding
@@ -29,6 +30,7 @@ class MainActivity : AppCompatActivity() {
   private var totalTime: Long = 0
   private var calendar = Calendar.getInstance()
 
+  @ExperimentalTime
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     binding = ActivityMainBinding.inflate(layoutInflater)
@@ -52,50 +54,53 @@ class MainActivity : AppCompatActivity() {
       datePicker.addOnPositiveButtonClickListener { date = it }
     }
     timePickerButton.setOnClickListener {
-      timePicker.show( supportFragmentManager, "time_picker" )
+      timePicker.show(supportFragmentManager, "time_picker")
       timePicker.addOnPositiveButtonClickListener {
         val hour = timePicker.hour
         val minutes = timePicker.minute
 
-        val hourToMinutes = hour.times(60 )
-        val totalMinutes = minutes.plus( hourToMinutes )
-        val milliseconds = totalMinutes.times( 60 ).times(1000).toLong()
+        val hourToMinutes = hour.times(60)
+        val totalMinutes = minutes.plus(hourToMinutes)
+        val milliseconds = totalMinutes.times(60).times(1000).toLong()
 
-        totalTime = date.plus( milliseconds )
+        totalTime = date.plus(milliseconds)
       }
 
     }
 
-    submitButton.setOnClickListener { setOneTimeRequest( totalTime, message, title ) }
+    submitButton.setOnClickListener {
+      setOneTimeRequest(totalTime, message, title)
+      Toast.makeText( applicationContext, "Notificación creada, se mostrará pronto", Toast.LENGTH_LONG ).show()
+    }
 
   }
 
   private fun createDatePicker(): MaterialDatePicker<Long> {
     val calendarConstraintsBuilder = CalendarConstraints.Builder()
-    calendarConstraintsBuilder.setValidator( DateValidatorPointForward.now() )
+    calendarConstraintsBuilder.setValidator(DateValidatorPointForward.now())
 
     val calendar = calendarConstraintsBuilder.build()
 
     val builder = MaterialDatePicker.Builder.datePicker()
     val today = MaterialDatePicker.todayInUtcMilliseconds()
     builder.setTitleText("Selecciona la fecha")
-    builder.setSelection( today )
-    builder.setCalendarConstraints( calendar )
+    builder.setSelection(today)
+    builder.setCalendarConstraints(calendar)
 
     return builder.build();
   }
 
   private fun createTimePicker(): MaterialTimePicker {
-    val isSystem24hrs =  DateFormat.is24HourFormat( applicationContext )
+    val isSystem24hrs = DateFormat.is24HourFormat(applicationContext)
     val clockFormat = if (isSystem24hrs) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H
-    val hour = calendar.get( Calendar.HOUR_OF_DAY )
-    val minutes = calendar.get( Calendar.MINUTE )
+    val hour = calendar.get(Calendar.HOUR_OF_DAY)
+    val minutes = calendar.get(Calendar.MINUTE)
     val builder = MaterialTimePicker.Builder()
 
-    builder.setTimeFormat( clockFormat )
+    builder.setTimeFormat(clockFormat)
     builder.setTitleText("Selecciona la hora")
-    builder.setHour( hour )
-    builder.setMinute( minutes )
+    builder.setHour(hour)
+    builder.setMinute(minutes)
     return builder.build()
   }
 
@@ -104,26 +109,24 @@ class MainActivity : AppCompatActivity() {
     val now = calendar.time.time
     val isDateValid = date > now
 
-    val dateToNotify = if ( isDateValid ) date else calendar.time.time.plus( 60000 ) // <- 1000 * 60 = 1 min
+    val time = if (isDateValid) date.minus(now) else 60000 // <- 1000 * 60 = 1 min
 
     val data = Data.Builder()
       .putString("message", message)
       .putString("title", title)
-      .putLong("date", dateToNotify)
       .build()
 
     val uploadRequest =
       OneTimeWorkRequest.Builder(UploadManager::class.java)
         .setInputData(data)
-        .setInitialDelay(date, TimeUnit.MILLISECONDS)
+        .setInitialDelay(time, TimeUnit.MILLISECONDS)
         .build()
 
     workManager.enqueue(uploadRequest)
-    workManager.getWorkInfoByIdLiveData(uploadRequest.id).observeForever {
-      if (it !== null) {
-        Log.d("[Period Work]", "Is it finished? ${it.state.isFinished}")
+    workManager.getWorkInfoByIdLiveData(uploadRequest.id)
+      .observeForever {
+        if (it !== null) Log.d("[Period Work]", "Is it finished? ${it.state.isFinished}")
       }
-    }
   }
 
 }
