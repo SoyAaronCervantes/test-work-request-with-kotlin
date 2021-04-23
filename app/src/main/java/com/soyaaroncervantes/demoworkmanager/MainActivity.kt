@@ -104,7 +104,7 @@ class MainActivity : AppCompatActivity() {
     val now = calendar.time.time
     val isDateValid = date > now
 
-    val dateToNotify = if ( isDateValid ) date else calendar.time.time.plus( 60000 )
+    val dateToNotify = if ( isDateValid ) date else calendar.time.time.plus( 60000 ) // <- 1000 * 60 = 1 min
 
     val data = Data.Builder()
       .putString("message", message)
